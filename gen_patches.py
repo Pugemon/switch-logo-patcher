@@ -8,8 +8,6 @@ from pathlib import Path
 import ips
 from PIL import Image
 
-LOGO_WIDTH = 308
-LOGO_HEIGHT = 350
 
 # Build Id: offset
 patch_info = {
@@ -50,36 +48,7 @@ human_readble_to_build_id = {
 }
 # TODO Fill vales
 
-
-def create_logo_patch(new_logo_path):
-    new_logo = Image.open(new_logo_path).convert("RGBA")
-    if new_logo.size != (LOGO_WIDTH, LOGO_HEIGHT):
-        raise ValueError("Invalid size for the logo")
-
-    new_f = io.BytesIO(new_logo.tobytes())
-    new_f.seek(0, 2)
-    new_len = new_f.tell()
-    new_f.seek(0)
-
-    logo_patch = ips.Patch()
-    while new_f.tell() < new_len:
-        logo_patch.add_record(new_f.tell(), new_f.read(0xFFFF))
-    return logo_patch
-
-
-def apply_patch(old_logo_path, new_logo_path):
-    old_logo = Image.open(old_logo_path).convert("RGBA")
-    new_logo = Image.open(new_logo_path).convert("RGBA")
-    if old_logo.size != (LOGO_WIDTH, LOGO_HEIGHT) or new_logo.size != (
-        LOGO_WIDTH,
-        LOGO_HEIGHT,
-    ):
-        raise ValueError("Invalid size for the logo")
-
-    return ips.Patch.create(old_logo.tobytes(), new_logo.tobytes())
-
-
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "patches_dir",
@@ -95,32 +64,36 @@ def main():
         help="The firmware version for which to create the patch",
         choices=human_readble_to_build_id.keys(),
     )
-
     args = parser.parse_args()
 
     if args.fw_version:
         ver_build_id = human_readble_to_build_id.get(args.fw_version)
-        todo_to_patch = {ver_build_id : patch_info.get(args.fw_version)}
+        todo_to_patch = {ver_build_id: patch_info.get(args.fw_version)}
     else:
         todo_to_patch = patch_info
 
     if args.old_logo is None:
-        base_patch = create_logo_patch(args.new_logo)
+        new_logo = Image.open(args.new_logo).convert("RGBA")
+        if new_logo.size != (308, 350):
+            raise ValueError("Invalid size for the logo")
+        new_f = io.BytesIO(new_logo.tobytes())
+        new_f.seek(0, 2)
+        new_len = new_f.tell()
+        new_f.seek(0)
+        base_patch = ips.Patch()
+        while new_f.tell() < new_len:
+            base_patch.add_record(new_f.tell(), new_f.read(0xFFFF))
     else:
-        base_patch = apply_patch(args.old_logo, args.new_logo)
-
+        old_logo = Image.open(args.old_logo).convert("RGBA")
+        new_logo = Image.open(args.new_logo).convert("RGBA")
+        if old_logo.size != (308, 350) or new_logo.size != (308, 350):
+            raise ValueError("Invalid size for the logo")
+        base_patch = ips.Patch.create(old_logo.tobytes(), new_logo.tobytes())
     if not args.patches_dir.exists():
         args.patches_dir.mkdir(parents=True)
-
     for build_id, offset in todo_to_patch.items():
         tmp_p = ips.Patch()
-
         for r in base_patch.records:
             tmp_p.add_record(r.offset + offset, r.content, r.rle_size)
-
-        with args.patches_dir.joinpath(f"{build_id}.ips").open("wb") as f:
+        with Path(args.patches_dir, f"{build_id}.ips").open("wb") as f:
             f.write(bytes(tmp_p))
-
-
-if __name__ == "__main__":
-    main()
