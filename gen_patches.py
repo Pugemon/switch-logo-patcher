@@ -7,7 +7,6 @@ from pathlib import Path
 import ips
 from PIL import Image
 
-
 # Build Id: offset
 patch_info = {
     # FW <= 4.0
@@ -67,7 +66,7 @@ if __name__ == "__main__":
 
     if args.fw_version:
         ver_build_id = human_readble_to_build_id.get(args.fw_version)
-        todo_to_patch = {ver_build_id: patch_info.get(args.fw_version)}
+        todo_to_patch = {ver_build_id: patch_info.get(ver_build_id)}
     else:
         todo_to_patch = patch_info
 
